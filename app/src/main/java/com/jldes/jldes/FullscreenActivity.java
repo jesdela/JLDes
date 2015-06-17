@@ -4,6 +4,7 @@ import com.jldes.jldes.util.SystemUiHider;
 
 import android.annotation.TargetApi;
 import android.app.Activity;
+import android.content.Intent;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -50,13 +51,13 @@ public class FullscreenActivity extends Activity {
         super.onCreate(savedInstanceState);
 
         setContentView(R.layout.activity_fullscreen);
+        hilador();
 
         final View controlsView = findViewById(R.id.fullscreen_content_controls);
-        final View contentView = findViewById(R.id.fullscreen_content);
 
         // Set up an instance of SystemUiHider to control the system UI for
         // this activity.
-        mSystemUiHider = SystemUiHider.getInstance(this, contentView, HIDER_FLAGS);
+        mSystemUiHider = SystemUiHider.getInstance(this, controlsView, HIDER_FLAGS);
         mSystemUiHider.setup();
         mSystemUiHider
                 .setOnVisibilityChangeListener(new SystemUiHider.OnVisibilityChangeListener() {
@@ -97,7 +98,7 @@ public class FullscreenActivity extends Activity {
                 });
 
         // Set up the user interaction to manually show or hide the system UI.
-        contentView.setOnClickListener(new View.OnClickListener() {
+        controlsView.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 if (TOGGLE_ON_CLICK) {
@@ -111,7 +112,35 @@ public class FullscreenActivity extends Activity {
         // Upon interacting with UI controls, delay any scheduled hide()
         // operations to prevent the jarring behavior of controls going away
         // while interacting with the UI.
-        findViewById(R.id.dummy_button).setOnTouchListener(mDelayHideTouchListener);
+    }
+
+    private void hilador() {
+        final FullscreenActivity portada = this;
+        final Handler handler = new Handler();
+        final Runnable proceso = new Runnable() {
+
+            @Override
+            public void run() {
+
+                try {
+                    finish();
+                    overridePendingTransition(R.anim.rotacion, R.anim.rotaciono);
+                    startActivity(new Intent(portada, Noticias.class));
+                } catch (Exception e) {
+                }
+            }
+        };
+        Thread tiempo = new Thread() {
+            @Override
+            public void run() {
+                try {
+                    Thread.sleep(2500);
+                    handler.post(proceso);
+                } catch (Exception e) {
+                }
+            }
+        };
+        tiempo.start();
     }
 
     @Override

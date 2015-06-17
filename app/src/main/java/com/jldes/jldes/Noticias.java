@@ -1,6 +1,14 @@
 package com.jldes.jldes;
 
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.DialogInterface;
+import android.content.Intent;
+import android.graphics.drawable.Drawable;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
+import android.os.AsyncTask;
+import android.os.StrictMode;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.app.ActionBar;
 import android.support.v4.app.Fragment;
@@ -8,6 +16,12 @@ import android.support.v4.app.FragmentManager;
 import android.content.Context;
 import android.os.Build;
 import android.os.Bundle;
+import android.support.v7.widget.DefaultItemAnimator;
+import android.support.v7.widget.LinearLayoutManager;
+import android.support.v7.widget.RecyclerView;
+import android.text.Html;
+import android.text.Spanned;
+import android.util.Log;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -18,8 +32,14 @@ import android.support.v4.widget.DrawerLayout;
 import android.widget.ArrayAdapter;
 import android.widget.TextView;
 
+import java.io.IOException;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
+
 public class Noticias extends AppCompatActivity
         implements NavigationDrawerFragment.NavigationDrawerCallbacks {
+
 
     /**
      * Fragment managing the behaviors, interactions and presentation of the navigation drawer.
@@ -29,12 +49,39 @@ public class Noticias extends AppCompatActivity
     /**
      * Used to store the last screen title. For use in {@link #restoreActionBar()}.
      */
+
+    private RecyclerView recView;
+
+    private ArrayList<Titular> datos;
     private CharSequence mTitle;
+    private List<Noticia> noticias;
+    private AdaptadorTitulares adaptador;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_noticias);
+        StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder().permitAll().build();
+        StrictMode.setThreadPolicy(policy);
+
+        datos = new ArrayList<Titular>();
+        recView = (RecyclerView) findViewById(R.id.RecView);
+        recView.setHasFixedSize(true);
+        adaptador = new AdaptadorTitulares(datos);
+        recView.setAdapter(adaptador);
+
+
+        recView.setLayoutManager(new LinearLayoutManager(Noticias.this, LinearLayoutManager.VERTICAL, false));
+        //recView.setLayoutManager(new GridLayoutManager(this,3));
+
+//        recView.addItemDecoration(
+//                new DividerItemDecoration(this,DividerItemDecoration.VERTICAL_LIST));
+
+        recView.setItemAnimator(new DefaultItemAnimator());
+        if (estaConectado()) {
+            CargarXmlTask tarea = new CargarXmlTask();
+            tarea.execute("http://blog.jldes.net/feeds/posts/default?alt=rss");
+        }
 
         mNavigationDrawerFragment = (NavigationDrawerFragment)
                 getSupportFragmentManager().findFragmentById(R.id.navigation_drawer);
@@ -45,14 +92,71 @@ public class Noticias extends AppCompatActivity
                 R.id.navigation_drawer,
                 (DrawerLayout) findViewById(R.id.drawer_layout));
     }
+    private boolean estaConectado() {
+        if (conectadoWifi()) {
+            return true;
+        } else {
+            if (conectadoRedMovil()) {
+                return true;
+            } else {
+                showAlertDialog(Noticias.this, "Conexion a Internet",
+                        "Tu Dispositivo no tiene Conexion a Internet.", false);
+                return false;
+            }
+        }
+    }
 
+    protected Boolean conectadoWifi() {
+        ConnectivityManager connectivity = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        if (connectivity != null) {
+            NetworkInfo info = connectivity.getNetworkInfo(ConnectivityManager.TYPE_WIFI);
+            if (info != null) {
+                if (info.isConnected()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    protected Boolean conectadoRedMovil() {
+        ConnectivityManager connectivity = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        if (connectivity != null) {
+            NetworkInfo info = connectivity.getNetworkInfo(ConnectivityManager.TYPE_MOBILE);
+            if (info != null) {
+                if (info.isConnected()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+    public void showAlertDialog(Context context, String title, String message, Boolean status) {
+        AlertDialog alertDialog = new AlertDialog.Builder(context).create();
+
+        alertDialog.setTitle(title);
+
+        alertDialog.setMessage(message);
+
+
+        alertDialog.setButton("OK", new DialogInterface.OnClickListener() {
+            public void onClick(DialogInterface dialog, int which) {
+            }
+        });
+
+        alertDialog.show();
+    }
     @Override
     public void onNavigationDrawerItemSelected(int position) {
         // update the main content by replacing fragments
-        FragmentManager fragmentManager = getSupportFragmentManager();
-        fragmentManager.beginTransaction()
-                .replace(R.id.container, PlaceholderFragment.newInstance(position + 1))
-                .commit();
+        Intent intent;
+        // update the main content by replacing fragments
+        switch (position){
+            case 0:
+                break;
+            default:
+                break;
+        }
     }
 
     public void onSectionAttached(int number) {
@@ -144,5 +248,55 @@ public class Noticias extends AppCompatActivity
                     getArguments().getInt(ARG_SECTION_NUMBER));
         }
     }
+    private class CargarXmlTask extends AsyncTask<String, Integer, Boolean> {
 
+        protected Boolean doInBackground(String... params) {
+
+            RssParserSax2 saxparser =
+                    new RssParserSax2(params[0]);
+
+            noticias = saxparser.parse();
+
+            return true;
+        }
+
+        protected void onPostExecute(Boolean result) {
+
+            //Tratamos la lista de noticias
+            //Por ejemplo: escribimos los títulos en pantalla
+            for (Noticia noticia : noticias.subList(0, 6)) {
+                Spanned spanned = Html.fromHtml(noticia.getDescripcion(), getImageHTML(), null);
+                datos.add(new Titular(noticia.getTitulo(), "" + spanned));
+            }
+            adaptador = new AdaptadorTitulares(datos);
+
+            recView.setAdapter(adaptador);
+            adaptador.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+//                    Intent intent = new Intent(Noticias.this, NoticiaCompleta.class);
+//                    intent.putExtra("Noticia", noticias.get(recView.getChildPosition(v)));
+//                    startActivity(intent);
+                }
+            });
+
+        }
+
+        public Html.ImageGetter getImageHTML() {
+            Html.ImageGetter ig = new Html.ImageGetter() {
+                public Drawable getDrawable(String source) {
+                    Log.d("Source",source);
+                    try {
+                        Drawable d = Drawable.createFromStream(new URL(source).openStream(), "src name");
+                        d.setBounds(0, 0, d.getIntrinsicWidth(), d.getIntrinsicHeight());
+                        return d;
+                    } catch (IOException e) {
+                        Log.v("IOException", e.getMessage());
+                        return null;
+                    }
+                }
+            };
+            return ig;
+        }
+    }
 }
